@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from langchain_community.document_loaders import TextLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
@@ -7,11 +7,11 @@ from langchain_chroma import Chroma
 load_dotenv()
 
 # 1. Load the document
-loader = TextLoader("data.txt")
+loader = PyPDFLoader("physics_notes.pdf")
 documents = loader.load()
 
 # 2. Chunk it into smaller pieces
-splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=30)
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
 chunks = splitter.split_documents(documents)
 print(f"Split into {len(chunks)} chunks")
 
