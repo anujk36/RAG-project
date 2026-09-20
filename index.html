@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RAG Question Answering</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        input { width: 100%; padding: 10px; font-size: 16px; }
+        button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
+        #answer { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Ask a Question</h1>
+    <input type="text" id="questionInput" placeholder="Type your question here...">
+    <button onclick="askQuestion()">Ask</button>
+    <div id="answer"></div>
+
+    <script>
+        async function askQuestion() {
+            const question = document.getElementById("questionInput").value;
+            const answerDiv = document.getElementById("answer");
+            answerDiv.innerText = "Thinking...";
+
+            const response = await fetch("http://127.0.0.1:8000/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: question })
+            });
+
+            const data = await response.json();
+            answerDiv.innerText = data.answer;
+        }
+    </script>
+</body>
+</html>
