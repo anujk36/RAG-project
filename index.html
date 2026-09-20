@@ -1,35 +1,96 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>RAG Question Answering</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-        input { width: 100%; padding: 10px; font-size: 16px; }
-        button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
-        #answer { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; white-space: pre-wrap; }
-    </style>
+    <meta charset="UTF-8">
+    <title>RAG Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <h1>Ask a Question</h1>
-    <input type="text" id="questionInput" placeholder="Type your question here...">
-    <button onclick="askQuestion()">Ask</button>
-    <div id="answer"></div>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-8">
+        <h1 class="text-2xl font-bold text-gray-800 mb-1">RAG Assistant</h1>
+        <p class="text-sm text-gray-500 mb-6" id="statusText">Checking connection...</p>
+
+        <div class="flex gap-2 mb-6">
+            <input
+                id="questionInput"
+                type="text"
+                placeholder="Ask something about your documents..."
+                class="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onkeydown="if(event.key === 'Enter') askQuestion()"
+            >
+            <button
+                onclick="askQuestion()"
+                id="askButton"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition"
+            >
+                Ask
+            </button>
+        </div>
+
+        <div id="answerBox" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 whitespace-pre-wrap"></div>
+        <div id="errorBox" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-4"></div>
+    </div>
 
     <script>
-        async function askQuestion() {
-            const question = document.getElementById("questionInput").value;
-            const answerDiv = document.getElementById("answer");
-            answerDiv.innerText = "Thinking...";
+        const API_URL = "http://127.0.0.1:8000";
 
-            const response = await fetch("http://127.0.0.1:8000/ask", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ question: question })
-            });
-
-            const data = await response.json();
-            answerDiv.innerText = data.answer;
+        async function checkHealth() {
+            const statusText = document.getElementById("statusText");
+            try {
+                const res = await fetch(`${API_URL}/health`);
+                if (res.ok) {
+                    statusText.innerText = "Connected to RAG backend";
+                    statusText.className = "text-sm text-green-600 mb-6";
+                } else {
+                    throw new Error("Backend unhealthy");
+                }
+            } catch (e) {
+                statusText.innerText = "Cannot reach backend — is the server running?";
+                statusText.className = "text-sm text-red-600 mb-6";
+            }
         }
+
+        async function askQuestion() {
+            const input = document.getElementById("questionInput");
+            const answerBox = document.getElementById("answerBox");
+            const errorBox = document.getElementById("errorBox");
+            const button = document.getElementById("askButton");
+
+            const question = input.value.trim();
+            if (!question) return;
+
+            answerBox.classList.add("hidden");
+            errorBox.classList.add("hidden");
+            button.disabled = true;
+            button.innerText = "Thinking...";
+
+            try {
+                const res = await fetch(`${API_URL}/ask`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question: question })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || "Something went wrong.");
+                }
+
+                const data = await res.json();
+                answerBox.innerText = data.answer;
+                answerBox.classList.remove("hidden");
+
+            } catch (e) {
+                errorBox.innerText = e.message;
+                errorBox.classList.remove("hidden");
+            } finally {
+                button.disabled = false;
+                button.innerText = "Ask";
+            }
+        }
+
+        checkHealth();
     </script>
 </body>
 </html>
