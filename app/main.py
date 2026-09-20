@@ -2,9 +2,9 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers import health, ask, documents
 
 from app.logging_config import setup_logging, logger
-from app.routers import health, ask
 
 setup_logging()
 
@@ -23,5 +23,6 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(ask.router)
+app.include_router(documents.router)
 
 logger.info("RAG API startup complete.")
