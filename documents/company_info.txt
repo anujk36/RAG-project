@@ -1,0 +1,4 @@
+Nimbus Robotics was founded in 2021 by Dr. Elena Vasquez.
+Their flagship product is a warehouse sorting robot called SortBot X1.
+The SortBot X1 can process 1200 packages per hour.
+Nimbus Robotics is headquartered in Austin, Texas.

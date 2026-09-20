@@ -11,4 +11,4 @@ llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash")
 # Send one message and get a reply
 response = llm.invoke("Say hello in one short sentence.")
 
-print(response.text())
+print(response.text)

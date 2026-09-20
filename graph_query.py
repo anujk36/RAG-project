@@ -71,6 +71,6 @@ builder.add_edge("no_answer_found", END)
 graph = builder.compile()
 
 
-result = graph.invoke({"question": "What is Fermi energy?"})
+result = graph.invoke({"question": "How many packages per hour can the SortBot X1 process?"})
 print("Found relevant:", result["found_relevant"])
 print(result["answer"])

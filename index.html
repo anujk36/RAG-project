@@ -28,8 +28,31 @@
             </button>
         </div>
 
-        <div id="answerBox" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 whitespace-pre-wrap"></div>
+        <div id="answerBox" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800"></div>
         <div id="errorBox" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-4"></div>
+
+        <hr class="my-6 border-gray-200">
+
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Add a document</h2>
+        <div class="flex gap-2 mb-2">
+            <input
+                id="pdfInput"
+                type="file"
+                accept="application/pdf"
+                class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm"
+            >
+            <button
+                onclick="uploadPdf()"
+                id="uploadButton"
+                class="bg-gray-800 hover:bg-gray-900 text-white font-medium px-5 py-2 rounded-lg transition text-sm"
+            >
+                Upload
+            </button>
+        </div>
+        <p id="uploadStatus" class="text-sm mb-4"></p>
+
+        <h3 class="text-sm font-medium text-gray-500 mb-2">Indexed documents</h3>
+        <ul id="documentList" class="text-sm text-gray-700 space-y-1 list-disc list-inside"></ul>
     </div>
 
     <script>
@@ -78,7 +101,25 @@
                 }
 
                 const data = await res.json();
-                answerBox.innerText = data.answer;
+                answerBox.innerHTML = "";
+
+                const textEl = document.createElement("div");
+                textEl.className = "whitespace-pre-wrap";
+                textEl.innerText = data.answer;
+                answerBox.appendChild(textEl);
+
+                if (data.images && data.images.length > 0) {
+                    const imagesEl = document.createElement("div");
+                    imagesEl.className = "mt-4 grid grid-cols-2 gap-3";
+                    data.images.forEach(imgPath => {
+                        const img = document.createElement("img");
+                        img.src = `${API_URL}/images/${imgPath}`;
+                        img.className = "rounded-lg border border-gray-200 w-full object-cover";
+                        imagesEl.appendChild(img);
+                    });
+                    answerBox.appendChild(imagesEl);
+                }
+
                 answerBox.classList.remove("hidden");
 
             } catch (e) {
@@ -90,7 +131,73 @@
             }
         }
 
+        async function loadDocuments() {
+            const list = document.getElementById("documentList");
+            try {
+                const res = await fetch(`${API_URL}/documents`);
+                const data = await res.json();
+                list.innerHTML = "";
+                if (!data.documents || data.documents.length === 0) {
+                    list.innerHTML = "<li class='text-gray-400 list-none'>No documents indexed yet.</li>";
+                    return;
+                }
+                data.documents.forEach(name => {
+                    const li = document.createElement("li");
+                    li.innerText = name;
+                    list.appendChild(li);
+                });
+            } catch (e) {
+                list.innerHTML = "<li class='text-gray-400 list-none'>Could not load document list.</li>";
+            }
+        }
+
+        async function uploadPdf() {
+            const input = document.getElementById("pdfInput");
+            const status = document.getElementById("uploadStatus");
+            const button = document.getElementById("uploadButton");
+
+            const file = input.files[0];
+            if (!file) {
+                status.innerText = "Choose a PDF first.";
+                status.className = "text-sm mb-4 text-red-600";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            button.disabled = true;
+            button.innerText = "Uploading...";
+            status.innerText = "Uploading and indexing — this can take a moment if the PDF has images...";
+            status.className = "text-sm mb-4 text-gray-500";
+
+            try {
+                const res = await fetch(`${API_URL}/upload`, {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || "Upload failed.");
+                }
+
+                status.innerText = `Indexed "${data.filename}": ${data.text_chunks} text chunks, ${data.images} images.`;
+                status.className = "text-sm mb-4 text-green-600";
+                input.value = "";
+                loadDocuments();
+
+            } catch (e) {
+                status.innerText = e.message;
+                status.className = "text-sm mb-4 text-red-600";
+            } finally {
+                button.disabled = false;
+                button.innerText = "Upload";
+            }
+        }
+
         checkHealth();
+        loadDocuments();
     </script>
 </body>
 </html>

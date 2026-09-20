@@ -2,7 +2,8 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import health, ask, documents
+from fastapi.responses import FileResponse
+from app.routers import health, ask, documents, images, upload
 
 from app.logging_config import setup_logging, logger
 
@@ -24,5 +25,13 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(ask.router)
 app.include_router(documents.router)
+app.include_router(images.router)
+app.include_router(upload.router)
+
+
+@app.get("/", include_in_schema=False)
+def serve_frontend():
+    return FileResponse("index.html")
+
 
 logger.info("RAG API startup complete.")

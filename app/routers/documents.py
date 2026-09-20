@@ -13,9 +13,12 @@ class DocumentListResponse(BaseModel):
 
 @router.get("/documents", response_model=DocumentListResponse, tags=["Documents"])
 def list_documents():
-    documents_dir = "documents"
+    documents_dir = settings.documents_dir
     if not os.path.exists(documents_dir):
         return DocumentListResponse(documents=[], count=0)
 
-    files = [f for f in os.listdir(documents_dir) if os.path.isfile(os.path.join(documents_dir, f))]
+    files = [
+        f for f in os.listdir(documents_dir)
+        if os.path.isfile(os.path.join(documents_dir, f)) and not f.startswith(".")
+    ]
     return DocumentListResponse(documents=files, count=len(files))

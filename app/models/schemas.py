@@ -7,6 +7,7 @@ class QuestionRequest(BaseModel):
 
 class AnswerResponse(BaseModel):
     answer: str
+    images: list[str] = Field(default_factory=list, description="Relative paths, served under /images/, of images relevant to the answer")
 
 
 class HealthResponse(BaseModel):

@@ -1,11 +1,23 @@
+from pathlib import Path
 from typing import TypedDict
+
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.exceptions import ModelRateLimitError
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_chroma import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import StateGraph, START, END
 
 from app.config import settings
 from app.logging_config import logger
-from app.exceptions import DocumentRetrievalError, LLMGenerationError, EmptyQuestionError
+from app.exceptions import (
+    DocumentRetrievalError,
+    LLMGenerationError,
+    EmptyQuestionError,
+    IndexingError,
+    RateLimitedError,
+)
+from app.image_processing import extract_images_from_pdf, build_image_documents
 
 
 class RAGState(TypedDict):
@@ -13,6 +25,7 @@ class RAGState(TypedDict):
     context: str
     answer: str
     found_relevant: bool
+    images: list[str]
 
 
 class RAGService:
@@ -40,10 +53,19 @@ class RAGService:
 
         if not relevant_docs:
             logger.info("No relevant documents found for question.")
-            return {"found_relevant": False, "context": ""}
+            return {"found_relevant": False, "context": "", "images": []}
 
-        context = "\n\n".join(doc.page_content for doc in relevant_docs)
-        return {"found_relevant": True, "context": context}
+        context_parts = []
+        images = []
+        for doc in relevant_docs:
+            if doc.metadata.get("type") == "image":
+                context_parts.append(f"[Image: {doc.metadata.get('source')}] {doc.page_content}")
+                images.append(doc.metadata.get("source"))
+            else:
+                context_parts.append(doc.page_content)
+
+        context = "\n\n".join(context_parts)
+        return {"found_relevant": True, "context": context, "images": images}
 
     def _generate(self, state: RAGState) -> dict:
         prompt = f"""Answer using ONLY the context below. If it's not there, say you don't know.
@@ -55,6 +77,11 @@ Question: {state['question']}
 """
         try:
             response = self.llm.invoke(prompt)
+        except ModelRateLimitError as e:
+            logger.error(f"LLM rate-limited: {e}")
+            raise RateLimitedError(
+                "The AI model's rate limit or daily quota has been exceeded. Please try again later."
+            )
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
             raise LLMGenerationError(str(e))
@@ -78,13 +105,42 @@ Question: {state['question']}
         builder.add_edge("no_answer_found", END)
         return builder.compile()
 
-    def ask(self, question: str) -> str:
+    def add_pdf(self, pdf_path: Path) -> dict:
+        """Processes a single PDF (text + embedded images) and adds it to the
+        already-open vector store, so it's searchable immediately."""
+        pdf_path = Path(pdf_path)
+        documents_dir = pdf_path.parent
+
+        try:
+            pages = PyPDFLoader(str(pdf_path)).load()
+        except Exception as e:
+            logger.error(f"Failed to load {pdf_path}: {e}")
+            raise IndexingError(f"Could not read PDF: {e}")
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+        text_chunks = splitter.split_documents(pages)
+
+        extracted_images = extract_images_from_pdf(pdf_path, documents_dir)
+        image_documents = build_image_documents(documents_dir, self.llm, images=extracted_images)
+
+        chunks = text_chunks + image_documents
+        if chunks:
+            try:
+                self.vectorstore.add_documents(chunks)
+            except Exception as e:
+                logger.error(f"Failed to add {pdf_path} to vector store: {e}")
+                raise IndexingError(f"Could not index PDF: {e}")
+
+        logger.info(f"Indexed {pdf_path.name}: {len(text_chunks)} text chunks, {len(image_documents)} images")
+        return {"text_chunks": len(text_chunks), "images": len(image_documents)}
+
+    def ask(self, question: str) -> dict:
         if not question or not question.strip():
             raise EmptyQuestionError("Question cannot be empty.")
 
         logger.info(f"Processing question: {question}")
         result = self.graph.invoke({"question": question})
-        return result["answer"]
+        return {"answer": result["answer"], "images": result.get("images", [])}
 
 
 rag_service = RAGService()
